@@ -1,0 +1,22 @@
+export const vocab = [
+  { hangul: '안녕하세요', romanization: 'annyeonghaseyo', meaning: 'hello' },
+  { hangul: '감사합니다', romanization: 'gamsahamnida', meaning: 'thank you' },
+  { hangul: '죄송합니다', romanization: 'joesonghamnida', meaning: 'sorry' },
+  { hangul: '네', romanization: 'ne', meaning: 'yes' },
+  { hangul: '아니요', romanization: 'aniyo', meaning: 'no' },
+  { hangul: '이름이 뭐예요?', romanization: 'ireumi mwoyeyo?', meaning: 'what is your name?' },
+  { hangul: '저는 존이에요', romanization: 'jeoneun jon-ieyo', meaning: 'I am John' },
+  { hangul: '만나서 반갑습니다', romanization: 'mannaseo bangapseumnida', meaning: 'nice to meet you' },
+  { hangul: '얼마예요?', romanization: 'eolmayeyo?', meaning: 'how much is it?' },
+  { hangul: '화장실이 어디예요?', romanization: 'hwajangsiri eodiyeyo?', meaning: 'where is the bathroom?' },
+  { hangul: '하나', romanization: 'hana', meaning: 'one' },
+  { hangul: '둘', romanization: 'dul', meaning: 'two' },
+  { hangul: '셋', romanization: 'set', meaning: 'three' },
+  { hangul: '물 주세요', romanization: 'mul juseyo', meaning: 'water, please' },
+  { hangul: '맛있어요', romanization: 'masisseoyo', meaning: 'it is delicious' },
+  { hangul: '알겠습니다', romanization: 'algesseumnida', meaning: 'understood' },
+  { hangul: '모르겠어요', romanization: 'moreugesseoyo', meaning: 'I do not know' },
+  { hangul: '천천히 말해 주세요', romanization: 'cheoncheonhi malhae juseyo', meaning: 'please speak slowly' },
+  { hangul: '안녕히 가세요', romanization: 'annyeonghi gaseyo', meaning: 'goodbye (to someone leaving)' },
+  { hangul: '사랑해요', romanization: 'saranghaeyo', meaning: 'I love you' }
+];
