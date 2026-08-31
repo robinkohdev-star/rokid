@@ -138,7 +138,9 @@ export default {
       feedback: '',
       mnemonic: ''
     });
-    this.speak(this.data.direction === 'en-ko' ? word.meaning : word.hangul);
+    if (this.data.direction === 'ko-en') {
+      this.speak(word.hangul);
+    }
     setTimeout(() => this.setData({ optionsVisible: true }), 50);
   },
 
@@ -211,14 +213,23 @@ export default {
     this.setData({ awaitingAnswer: false });
 
     const target = this.data.currentWord;
-    const correct = this.data.options[sideIndex].isCorrect;
+    const picked = this.data.options[sideIndex];
+    const correct = picked.isCorrect;
     recordResult(this.srsState, target.id, correct);
     saveState(this.srsState);
     this.refreshStats();
 
-    const feedback = correct ? 'Correct!' : `Not quite — it means "${target.meaning}".`;
-    this.setData({ feedback });
-    this.speak(feedback);
+    if (this.data.direction === 'en-ko') {
+      // Recall mode: never speak English, just sound out the Korean word
+      // the wearer just picked so they hear its pronunciation either way.
+      const feedback = correct ? 'Correct!' : `Not quite — it's "${target.hangul}" (${target.romanization}).`;
+      this.setData({ feedback });
+      this.speak(picked.text);
+    } else {
+      const feedback = correct ? 'Correct!' : `Not quite — it means "${target.meaning}".`;
+      this.setData({ feedback });
+      this.speak(feedback);
+    }
     setTimeout(() => this.nextRound(), 1600);
   },
 
@@ -248,8 +259,11 @@ export default {
   },
 
   speakCurrent() {
+    // Recall mode never speaks English, and replaying the Korean word here
+    // would give the answer away before it's picked, so this is a no-op.
+    if (this.data.direction === 'en-ko') return;
     const word = this.data.currentWord;
-    this.speak(this.data.direction === 'en-ko' ? word.meaning : word.hangul);
+    this.speak(word.hangul);
   },
 
   setMode(event) {
@@ -440,7 +454,7 @@ export default {
       <text class="feedback" ink:if="{{ feedback }}">{{ feedback }}</text>
       <text class="feedback" ink:if="{{ mnemonic }}">{{ mnemonic }}</text>
       <view class="row">
-        <button bindtap="speakCurrent">Play again</button>
+        <button ink:if="{{ direction === 'ko-en' }}" bindtap="speakCurrent">Play again</button>
         <button bindtap="getMnemonic">{{ mnemonicLoading ? '...' : 'Mnemonic' }}</button>
       </view>
       <text class="stats">Due: {{ due }}  Mastered: {{ mastered }}/{{ poolSize }}</text>
