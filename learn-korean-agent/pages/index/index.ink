@@ -485,7 +485,8 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 4px;
   height: 100%;
   background: #000;
   color: var(--color-primary, #40FF5E);
@@ -494,8 +495,8 @@ export default {
 .tabs {
   display: flex;
   flex-direction: row;
-  gap: var(--spacing-md, 12px);
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .tab {
