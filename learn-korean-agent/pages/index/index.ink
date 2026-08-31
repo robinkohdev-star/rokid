@@ -428,6 +428,7 @@ export default {
         <text class="pill {{ category === 'mix' ? 'active' : '' }}" data-category="mix" bindtap="setCategory">Mix</text>
         <text class="pill {{ direction === 'ko-en' ? 'active' : '' }}" data-direction="ko-en" bindtap="setDirection">KO→EN</text>
         <text class="pill {{ direction === 'en-ko' ? 'active' : '' }}" data-direction="en-ko" bindtap="setDirection">EN→KO</text>
+        <text class="stats">{{ due }}/{{ poolSize }}</text>
       </view>
 
       <view class="options-row">
@@ -439,15 +440,9 @@ export default {
         </view>
       </view>
 
-      <text class="hangul" ink:if="{{ direction === 'ko-en' }}">{{ currentWord.hangul }} ({{ currentWord.romanization }})</text>
-      <text class="hangul" ink:if="{{ direction === 'en-ko' }}">{{ currentWord.meaning }}</text>
-      <text class="feedback">{{ message || (sensorAvailable ? 'Tilt to answer' : 'Tap to answer') }}</text>
-
-      <view class="row">
-        <button ink:if="{{ direction === 'ko-en' }}" bindtap="speakCurrent">Play</button>
-        <button bindtap="getMnemonic">{{ mnemonicLoading ? '...' : 'Mnemonic' }}</button>
-        <text class="stats">{{ due }} due · {{ mastered }}/{{ poolSize }}</text>
-      </view>
+      <text class="hangul" ink:if="{{ direction === 'ko-en' }}" bindtap="getMnemonic">{{ currentWord.hangul }} ({{ currentWord.romanization }})</text>
+      <text class="hangul" ink:if="{{ direction === 'en-ko' }}" bindtap="getMnemonic">{{ currentWord.meaning }}</text>
+      <text class="feedback">{{ mnemonicLoading ? '...' : (message || (sensorAvailable ? 'Tilt to answer · tap word for a tip' : 'Tap to answer')) }}</text>
     </view>
 
     <view class="card" ink:if="{{ mode === 'scenario' }}">
