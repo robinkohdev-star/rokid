@@ -7,13 +7,20 @@ Korean (Hangul).
 ## Capabilities
 
 - **Review** — the core mode, matching how the reference "Learn Chinese"
-  agent works: a due word is shown (Hangul + romanization) and spoken via
-  TTS, then two candidate meanings drop down from the top of the display,
-  one on the left and one on the right. The wearer tilts their head toward
-  the correct meaning; the glasses' orientation sensor picks up the tilt
-  and locks in that side as the answer. This is how reading, pronunciation,
-  and meaning are all reinforced in one pass. Answers drive a spaced-
-  repetition scheduler so words you get wrong resurface sooner.
+  agent works: a due word/meaning is shown and spoken via TTS, then two
+  candidates drop down from the top of the display, one on the left and
+  one on the right. The wearer tilts their head toward the correct one;
+  the glasses' orientation sensor picks up the tilt and locks in that side
+  as the answer. Two settings apply to this mode:
+  - **Category** — General (descriptive words), Conjunction, Objects, or
+    Mix (all three combined). Filters which words are in play, including
+    which word the distractor option is pulled from.
+  - **Direction** — Read (KO→EN): Korean is shown/spoken, pick the correct
+    English meaning. Recall (EN→KO): the English meaning is shown/spoken,
+    pick the correct Korean word. Both directions reinforce reading,
+    pronunciation, and meaning together.
+  Both settings persist across restarts. Answers drive a spaced-repetition
+  scheduler so words you get wrong resurface sooner.
 - **Scenario** — spoken roleplay practice in a real-world context (ordering
   coffee, asking directions, meeting someone, bargaining at a market), with
   an LLM playing an in-character local.

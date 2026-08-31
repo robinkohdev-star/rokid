@@ -7,8 +7,11 @@
       "type": "object",
       "properties": {
         "mode": { "enum": ["review", "scenario", "chat"] },
+        "category": { "enum": ["descriptive", "conjunction", "objects", "mix"] },
+        "direction": { "enum": ["ko-en", "en-ko"] },
         "due": { "type": "number" },
         "mastered": { "type": "number" },
+        "poolSize": { "type": "number" },
         "feedback": { "type": "string" },
         "mnemonic": { "type": "string" },
         "listening": { "type": "boolean" },
@@ -24,9 +27,12 @@
 </script>
 
 <script setup>
-import { vocab } from '../../data/vocab.js';
+import { vocab, CATEGORIES } from '../../data/vocab.js';
 import { scenarios } from '../../data/scenarios.js';
 import { loadState, saveState, pickDueWord, recordResult, dueCount, MAX_STAGE } from '../../data/srs.js';
+
+const CATEGORY_STORAGE_KEY = 'korean.category';
+const DIRECTION_STORAGE_KEY = 'korean.direction';
 
 const TUTOR_SYSTEM_PROMPT =
   'You are a warm, concise Korean language tutor speaking to someone wearing ' +
@@ -43,13 +49,16 @@ function scenarioPersonaPrompt(scenario) {
     'character or switch to English.';
 }
 
-// One correct meaning plus one distractor pulled from the rest of the deck,
-// shuffled into a stable [left, right] pair for the round.
-function buildOptions(word) {
-  const distractorPool = vocab.filter((w) => w.id !== word.id);
+// One correct answer plus one distractor pulled from the same pool, shuffled
+// into a stable [left, right] pair for the round. In 'ko-en' direction the
+// prompt is the Korean word and options are meanings; in 'en-ko' the prompt
+// is the meaning and options are Korean words.
+function buildOptions(word, pool, direction) {
+  const distractorPool = pool.filter((w) => w.id !== word.id);
   const distractor = distractorPool[Math.floor(Math.random() * distractorPool.length)];
   const pair = Math.random() < 0.5 ? [word, distractor] : [distractor, word];
-  return pair.map((w) => ({ text: w.meaning, isCorrect: w.id === word.id }));
+  const textFor = direction === 'en-ko' ? (w) => w.hangul : (w) => w.meaning;
+  return pair.map((w) => ({ text: textFor(w), isCorrect: w.id === word.id }));
 }
 
 const TILT_THRESHOLD_DEG = 18;
@@ -57,13 +66,16 @@ const TILT_THRESHOLD_DEG = 18;
 export default {
   data: {
     mode: 'review',
+    category: 'mix',
+    direction: 'ko-en',
     currentWord: vocab[0],
-    options: buildOptions(vocab[0]),
+    options: buildOptions(vocab[0], vocab, 'ko-en'),
     optionsVisible: false,
     awaitingAnswer: false,
     sensorAvailable: true,
     due: 0,
     mastered: 0,
+    poolSize: vocab.length,
     listening: false,
     feedback: '',
     mnemonic: '',
@@ -83,6 +95,9 @@ export default {
 
   onLoad() {
     this.srsState = loadState(vocab);
+    const category = localStorage.getItem(CATEGORY_STORAGE_KEY) || 'mix';
+    const direction = localStorage.getItem(DIRECTION_STORAGE_KEY) || 'ko-en';
+    this.setData({ category, direction });
     this.nextRound();
     if (this.data.mode === 'review') this.startSensor();
   },
@@ -95,27 +110,52 @@ export default {
     this.stopSensor();
   },
 
+  pool() {
+    return this.data.category === 'mix'
+      ? vocab
+      : vocab.filter((word) => word.category === this.data.category);
+  },
+
   refreshStats() {
+    const pool = this.pool();
     this.setData({
-      due: dueCount(vocab, this.srsState),
-      mastered: vocab.filter((word) => this.srsState[word.id].stage === MAX_STAGE).length
+      due: dueCount(pool, this.srsState),
+      mastered: pool.filter((word) => this.srsState[word.id].stage === MAX_STAGE).length,
+      poolSize: pool.length
     });
   },
 
   nextRound() {
-    const word = pickDueWord(vocab, this.srsState);
+    const pool = this.pool();
+    const word = pickDueWord(pool, this.srsState);
     this.baselineRoll = null;
     this.refreshStats();
     this.setData({
       currentWord: word,
-      options: buildOptions(word),
+      options: buildOptions(word, pool, this.data.direction),
       optionsVisible: false,
       awaitingAnswer: true,
       feedback: '',
       mnemonic: ''
     });
-    this.speak(word.hangul);
+    this.speak(this.data.direction === 'en-ko' ? word.meaning : word.hangul);
     setTimeout(() => this.setData({ optionsVisible: true }), 50);
+  },
+
+  setCategory(event) {
+    const category = event.currentTarget.dataset.category;
+    if (category === this.data.category) return;
+    localStorage.setItem(CATEGORY_STORAGE_KEY, category);
+    this.setData({ category });
+    this.nextRound();
+  },
+
+  setDirection(event) {
+    const direction = event.currentTarget.dataset.direction;
+    if (direction === this.data.direction) return;
+    localStorage.setItem(DIRECTION_STORAGE_KEY, direction);
+    this.setData({ direction });
+    this.nextRound();
   },
 
   startSensor() {
@@ -208,7 +248,8 @@ export default {
   },
 
   speakCurrent() {
-    this.speak(this.data.currentWord.hangul);
+    const word = this.data.currentWord;
+    this.speak(this.data.direction === 'en-ko' ? word.meaning : word.hangul);
   },
 
   setMode(event) {
@@ -369,6 +410,17 @@ export default {
     </view>
 
     <view class="card review-card" ink:if="{{ mode === 'review' }}">
+      <view class="settings-row">
+        <text class="pill {{ category === 'descriptive' ? 'active' : '' }}" data-category="descriptive" bindtap="setCategory">General</text>
+        <text class="pill {{ category === 'conjunction' ? 'active' : '' }}" data-category="conjunction" bindtap="setCategory">Conjunction</text>
+        <text class="pill {{ category === 'objects' ? 'active' : '' }}" data-category="objects" bindtap="setCategory">Objects</text>
+        <text class="pill {{ category === 'mix' ? 'active' : '' }}" data-category="mix" bindtap="setCategory">Mix</text>
+      </view>
+      <view class="settings-row">
+        <text class="pill {{ direction === 'ko-en' ? 'active' : '' }}" data-direction="ko-en" bindtap="setDirection">Read (KO→EN)</text>
+        <text class="pill {{ direction === 'en-ko' ? 'active' : '' }}" data-direction="en-ko" bindtap="setDirection">Recall (EN→KO)</text>
+      </view>
+
       <view class="options-row">
         <view class="option option-left {{ optionsVisible ? 'visible' : '' }}" bindtap="selectLeft">
           <text>{{ options[0].text }}</text>
@@ -378,8 +430,11 @@ export default {
         </view>
       </view>
 
-      <text class="hangul">{{ currentWord.hangul }}</text>
-      <text class="romanization">{{ currentWord.romanization }}</text>
+      <view ink:if="{{ direction === 'ko-en' }}">
+        <text class="hangul">{{ currentWord.hangul }}</text>
+        <text class="romanization">{{ currentWord.romanization }}</text>
+      </view>
+      <text class="hangul" ink:if="{{ direction === 'en-ko' }}">{{ currentWord.meaning }}</text>
       <text class="hint">{{ sensorAvailable ? 'Tilt your head left or right to answer' : 'Tap an answer above' }}</text>
 
       <text class="feedback" ink:if="{{ feedback }}">{{ feedback }}</text>
@@ -388,7 +443,7 @@ export default {
         <button bindtap="speakCurrent">Play again</button>
         <button bindtap="getMnemonic">{{ mnemonicLoading ? '...' : 'Mnemonic' }}</button>
       </view>
-      <text class="stats">Due: {{ due }}  Mastered: {{ mastered }}/20</text>
+      <text class="stats">Due: {{ due }}  Mastered: {{ mastered }}/{{ poolSize }}</text>
     </view>
 
     <view class="card" ink:if="{{ mode === 'scenario' }}">
@@ -479,6 +534,27 @@ export default {
 
 .review-card {
   width: 100%;
+}
+
+.settings-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.pill {
+  font-size: 11px;
+  padding: 3px 8px;
+  border: 1px solid #40ff5d42;
+  border-radius: var(--radius-md, 12px);
+  opacity: 0.7;
+}
+
+.pill.active {
+  border: 2px solid #40FF5E;
+  opacity: 1;
 }
 
 .options-row {
