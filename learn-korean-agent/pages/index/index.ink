@@ -1,7 +1,7 @@
 <script def>
 {
   "navigationBarTitleText": "Learn Korean",
-  "description": "Hands-free Korean tutor: spaced-repetition vocab review with TTS/ASR and LLM feedback, scenario roleplay conversations, AI-generated mnemonics, and free-form voice chat with a Korean tutor persona.",
+  "description": "Hands-free Korean tutor: spaced-repetition word recognition where two meanings drop from the top and the wearer tilts their head left/right to answer, scenario roleplay conversations, AI-generated mnemonics, and free-form voice chat with a Korean tutor persona.",
   "schema": {
     "data": {
       "type": "object",
@@ -12,6 +12,9 @@
         "feedback": { "type": "string" },
         "mnemonic": { "type": "string" },
         "listening": { "type": "boolean" },
+        "awaitingAnswer": { "type": "boolean" },
+        "optionsVisible": { "type": "boolean" },
+        "sensorAvailable": { "type": "boolean" },
         "scenarioStarted": { "type": "boolean" }
       },
       "required": ["mode", "due", "mastered"]
@@ -33,13 +36,6 @@ const TUTOR_SYSTEM_PROMPT =
 
 const MNEMONIC_STORAGE_KEY = 'korean.mnemonics';
 
-function normalize(text) {
-  return (text || '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '')
-    .trim();
-}
-
 function scenarioPersonaPrompt(scenario) {
   return `You are role-playing as ${scenario.persona} for a Korean-language ` +
     'learner wearing smart glasses. Stay fully in character. Reply only in ' +
@@ -47,10 +43,25 @@ function scenarioPersonaPrompt(scenario) {
     'character or switch to English.';
 }
 
+// One correct meaning plus one distractor pulled from the rest of the deck,
+// shuffled into a stable [left, right] pair for the round.
+function buildOptions(word) {
+  const distractorPool = vocab.filter((w) => w.id !== word.id);
+  const distractor = distractorPool[Math.floor(Math.random() * distractorPool.length)];
+  const pair = Math.random() < 0.5 ? [word, distractor] : [distractor, word];
+  return pair.map((w) => ({ text: w.meaning, isCorrect: w.id === word.id }));
+}
+
+const TILT_THRESHOLD_DEG = 18;
+
 export default {
   data: {
     mode: 'review',
     currentWord: vocab[0],
+    options: buildOptions(vocab[0]),
+    optionsVisible: false,
+    awaitingAnswer: false,
+    sensorAvailable: true,
     due: 0,
     mastered: 0,
     listening: false,
@@ -67,20 +78,108 @@ export default {
   session: null,
   scenarioSession: null,
   srsState: null,
+  sensor: null,
+  baselineRoll: null,
 
   onLoad() {
     this.srsState = loadState(vocab);
-    this.refreshReview();
+    this.nextRound();
+    if (this.data.mode === 'review') this.startSensor();
   },
 
-  refreshReview() {
+  onShow() {
+    if (this.data.mode === 'review') this.startSensor();
+  },
+
+  onHide() {
+    this.stopSensor();
+  },
+
+  refreshStats() {
     this.setData({
-      currentWord: pickDueWord(vocab, this.srsState),
       due: dueCount(vocab, this.srsState),
-      mastered: vocab.filter((word) => this.srsState[word.id].stage === MAX_STAGE).length,
+      mastered: vocab.filter((word) => this.srsState[word.id].stage === MAX_STAGE).length
+    });
+  },
+
+  nextRound() {
+    const word = pickDueWord(vocab, this.srsState);
+    this.baselineRoll = null;
+    this.refreshStats();
+    this.setData({
+      currentWord: word,
+      options: buildOptions(word),
+      optionsVisible: false,
+      awaitingAnswer: true,
       feedback: '',
       mnemonic: ''
     });
+    this.speak(word.hangul);
+    setTimeout(() => this.setData({ optionsVisible: true }), 50);
+  },
+
+  startSensor() {
+    try {
+      this.sensor = new AbsoluteOrientationSensor({ frequency: 30 });
+      this.sensor.addEventListener('reading', () => this.handleTiltReading());
+      this.sensor.addEventListener('error', () => this.setData({ sensorAvailable: false }));
+      this.sensor.start();
+      this.setData({ sensorAvailable: true });
+    } catch {
+      this.setData({ sensorAvailable: false });
+    }
+  },
+
+  stopSensor() {
+    if (this.sensor && typeof this.sensor.stop === 'function') {
+      this.sensor.stop();
+    }
+    this.sensor = null;
+  },
+
+  handleTiltReading() {
+    if (!this.data.awaitingAnswer || !this.sensor?.quaternion) return;
+
+    const [x, y, z, w] = this.sensor.quaternion;
+    const rollDeg = Math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y)) * (180 / Math.PI);
+
+    if (this.baselineRoll === null) {
+      this.baselineRoll = rollDeg;
+      return;
+    }
+
+    const delta = rollDeg - this.baselineRoll;
+    // Sign convention (positive delta = tilt right) is unverified against
+    // real hardware; flip the branches below if left/right feel swapped.
+    if (delta > TILT_THRESHOLD_DEG) {
+      this.selectAnswer(1);
+    } else if (delta < -TILT_THRESHOLD_DEG) {
+      this.selectAnswer(0);
+    }
+  },
+
+  selectLeft() {
+    this.selectAnswer(0);
+  },
+
+  selectRight() {
+    this.selectAnswer(1);
+  },
+
+  selectAnswer(sideIndex) {
+    if (!this.data.awaitingAnswer) return;
+    this.setData({ awaitingAnswer: false });
+
+    const target = this.data.currentWord;
+    const correct = this.data.options[sideIndex].isCorrect;
+    recordResult(this.srsState, target.id, correct);
+    saveState(this.srsState);
+    this.refreshStats();
+
+    const feedback = correct ? 'Correct!' : `Not quite — it means "${target.meaning}".`;
+    this.setData({ feedback });
+    this.speak(feedback);
+    setTimeout(() => this.nextRound(), 1600);
   },
 
   loadMnemonicCache() {
@@ -114,6 +213,11 @@ export default {
 
   setMode(event) {
     const mode = event.currentTarget.dataset.mode;
+    if (mode === 'review' && this.data.mode !== 'review') {
+      this.startSensor();
+    } else if (mode !== 'review' && this.data.mode === 'review') {
+      this.stopSensor();
+    }
     this.setData({ mode });
   },
 
@@ -156,32 +260,6 @@ export default {
     this.saveMnemonicCache(cache);
     this.setData({ mnemonic, mnemonicLoading: false });
     this.speak(mnemonic);
-  },
-
-  async startPractice() {
-    if (this.data.listening) return;
-    this.setData({ listening: true, feedback: '' });
-
-    const target = this.data.currentWord;
-    const heard = await this.listenOnce();
-    const isMatch = normalize(heard) === normalize(target.romanization) ||
-      normalize(heard) === normalize(target.hangul);
-
-    recordResult(this.srsState, target.id, isMatch);
-    saveState(this.srsState);
-
-    const session = await this.ensureSession();
-    const feedback = session
-      ? await session.prompt(
-        `Target Korean phrase: "${target.hangul}" (${target.romanization}, ` +
-          `meaning "${target.meaning}"). The learner said: "${heard || '(nothing heard)'}". ` +
-          'Give one short sentence of feedback on how close that was and how to improve.'
-        )
-      : (isMatch ? 'Nicely done, that matches.' : `Close. The target is "${target.romanization}".`);
-
-    this.setData({ listening: false, feedback });
-    this.speak(feedback);
-    setTimeout(() => this.refreshReview(), 1800);
   },
 
   async startChat() {
@@ -258,7 +336,7 @@ export default {
     if (event.code !== 'Enter' && event.code !== 'GlobalHook') return;
     event.preventDefault();
     if (this.data.mode === 'review') {
-      this.startPractice();
+      this.speakCurrent();
     } else if (this.data.mode === 'scenario') {
       if (this.data.scenarioStarted) {
         this.replyToScenario();
@@ -272,7 +350,7 @@ export default {
 
   onVoiceWakeup() {
     if (this.data.mode === 'review') {
-      this.startPractice();
+      this.speakCurrent();
     } else if (this.data.mode === 'scenario' && this.data.scenarioStarted) {
       this.replyToScenario();
     } else if (this.data.mode === 'chat') {
@@ -290,19 +368,26 @@ export default {
       <text class="tab {{ mode === 'chat' ? 'active' : '' }}" data-mode="chat" bindtap="setMode">Chat</text>
     </view>
 
-    <view class="card" ink:if="{{ mode === 'review' }}">
+    <view class="card review-card" ink:if="{{ mode === 'review' }}">
+      <view class="options-row">
+        <view class="option option-left {{ optionsVisible ? 'visible' : '' }}" bindtap="selectLeft">
+          <text>{{ options[0].text }}</text>
+        </view>
+        <view class="option option-right {{ optionsVisible ? 'visible' : '' }}" bindtap="selectRight">
+          <text>{{ options[1].text }}</text>
+        </view>
+      </view>
+
       <text class="hangul">{{ currentWord.hangul }}</text>
       <text class="romanization">{{ currentWord.romanization }}</text>
-      <text class="meaning">{{ currentWord.meaning }}</text>
-      <view class="row">
-        <button bindtap="speakCurrent">Play</button>
-        <button bindtap="getMnemonic">{{ mnemonicLoading ? '...' : 'Mnemonic' }}</button>
-        <button class="{{ listening ? 'focused' : '' }}" bindtap="startPractice">
-          {{ listening ? 'Listening...' : 'Speak it' }}
-        </button>
-      </view>
+      <text class="hint">{{ sensorAvailable ? 'Tilt your head left or right to answer' : 'Tap an answer above' }}</text>
+
       <text class="feedback" ink:if="{{ feedback }}">{{ feedback }}</text>
       <text class="feedback" ink:if="{{ mnemonic }}">{{ mnemonic }}</text>
+      <view class="row">
+        <button bindtap="speakCurrent">Play again</button>
+        <button bindtap="getMnemonic">{{ mnemonicLoading ? '...' : 'Mnemonic' }}</button>
+      </view>
       <text class="stats">Due: {{ due }}  Mastered: {{ mastered }}/20</text>
     </view>
 
@@ -389,6 +474,45 @@ export default {
 
 .scenario-title {
   font-size: 16px;
+  text-align: center;
+}
+
+.review-card {
+  width: 100%;
+}
+
+.options-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
+  height: 56px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46%;
+  min-height: 40px;
+  border: 1px solid #40ff5d42;
+  border-radius: var(--radius-md, 12px);
+  padding: 8px;
+  box-sizing: border-box;
+  text-align: center;
+  transform: translateY(-140px);
+  opacity: 0;
+  transition: transform 450ms ease, opacity 450ms ease;
+}
+
+.option.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.hint {
+  font-size: 12px;
+  opacity: 0.7;
   text-align: center;
 }
 
