@@ -512,13 +512,13 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-md, 12px);
+  gap: 4px;
   width: 80%;
 }
 
 .hangul {
-  font-size: 22px;
-  line-height: 26px;
+  font-size: 18px;
+  line-height: 20px;
   text-align: center;
 }
 
@@ -544,8 +544,8 @@ export default {
 }
 
 .pill {
-  font-size: 11px;
-  padding: 3px 8px;
+  font-size: 10px;
+  padding: 2px 6px;
   border: 1px solid #40ff5d42;
   border-radius: var(--radius-md, 12px);
   opacity: 0.7;
@@ -561,7 +561,7 @@ export default {
   flex-direction: row;
   justify-content: space-between;
   width: 100%;
-  height: 56px;
+  height: 34px;
 }
 
 .option {
@@ -569,10 +569,10 @@ export default {
   align-items: center;
   justify-content: center;
   width: 46%;
-  min-height: 40px;
+  min-height: 26px;
   border: 1px solid #40ff5d42;
   border-radius: var(--radius-md, 12px);
-  padding: 8px;
+  padding: 4px;
   box-sizing: border-box;
   text-align: center;
   transform: translateY(-140px);
@@ -605,8 +605,9 @@ button {
   border: 1px solid #40ff5d42;
   border-radius: 12px;
   box-sizing: border-box;
-  padding: 5px 10px;
-  line-height: 24px;
+  padding: 2px 8px;
+  line-height: 16px;
+  font-size: 12px;
   text-align: center;
 }
 
@@ -615,7 +616,7 @@ button.focused {
 }
 
 .feedback {
-  font-size: 14px;
+  font-size: 12px;
   text-align: center;
 }
 
