@@ -12,8 +12,7 @@
         "due": { "type": "number" },
         "mastered": { "type": "number" },
         "poolSize": { "type": "number" },
-        "feedback": { "type": "string" },
-        "mnemonic": { "type": "string" },
+        "message": { "type": "string" },
         "listening": { "type": "boolean" },
         "awaitingAnswer": { "type": "boolean" },
         "optionsVisible": { "type": "boolean" },
@@ -77,8 +76,7 @@ export default {
     mastered: 0,
     poolSize: vocab.length,
     listening: false,
-    feedback: '',
-    mnemonic: '',
+    message: '',
     mnemonicLoading: false,
     scenarioIndex: 0,
     currentScenario: scenarios[0],
@@ -135,8 +133,7 @@ export default {
       options: buildOptions(word, pool, this.data.direction),
       optionsVisible: false,
       awaitingAnswer: true,
-      feedback: '',
-      mnemonic: ''
+      message: ''
     });
     if (this.data.direction === 'ko-en') {
       this.speak(word.hangul);
@@ -222,13 +219,13 @@ export default {
     if (this.data.direction === 'en-ko') {
       // Recall mode: never speak English, just sound out the Korean word
       // the wearer just picked so they hear its pronunciation either way.
-      const feedback = correct ? 'Correct!' : `Not quite — it's "${target.hangul}" (${target.romanization}).`;
-      this.setData({ feedback });
+      const message = correct ? 'Correct!' : `It's "${target.hangul}" (${target.romanization}).`;
+      this.setData({ message });
       this.speak(picked.text);
     } else {
-      const feedback = correct ? 'Correct!' : `Not quite — it means "${target.meaning}".`;
-      this.setData({ feedback });
-      this.speak(feedback);
+      const message = correct ? 'Correct!' : `It means "${target.meaning}".`;
+      this.setData({ message });
+      this.speak(message);
     }
     setTimeout(() => this.nextRound(), 1600);
   },
@@ -296,7 +293,7 @@ export default {
     const cache = this.loadMnemonicCache();
 
     if (cache[word.id]) {
-      this.setData({ mnemonic: cache[word.id] });
+      this.setData({ message: cache[word.id] });
       this.speak(cache[word.id]);
       return;
     }
@@ -313,7 +310,7 @@ export default {
 
     cache[word.id] = mnemonic;
     this.saveMnemonicCache(cache);
-    this.setData({ mnemonic, mnemonicLoading: false });
+    this.setData({ message: mnemonic, mnemonicLoading: false });
     this.speak(mnemonic);
   },
 
@@ -425,14 +422,12 @@ export default {
 
     <view class="card review-card" ink:if="{{ mode === 'review' }}">
       <view class="settings-row">
-        <text class="pill {{ category === 'descriptive' ? 'active' : '' }}" data-category="descriptive" bindtap="setCategory">General</text>
-        <text class="pill {{ category === 'conjunction' ? 'active' : '' }}" data-category="conjunction" bindtap="setCategory">Conjunction</text>
-        <text class="pill {{ category === 'objects' ? 'active' : '' }}" data-category="objects" bindtap="setCategory">Objects</text>
+        <text class="pill {{ category === 'descriptive' ? 'active' : '' }}" data-category="descriptive" bindtap="setCategory">Gen</text>
+        <text class="pill {{ category === 'conjunction' ? 'active' : '' }}" data-category="conjunction" bindtap="setCategory">Conj</text>
+        <text class="pill {{ category === 'objects' ? 'active' : '' }}" data-category="objects" bindtap="setCategory">Obj</text>
         <text class="pill {{ category === 'mix' ? 'active' : '' }}" data-category="mix" bindtap="setCategory">Mix</text>
-      </view>
-      <view class="settings-row">
-        <text class="pill {{ direction === 'ko-en' ? 'active' : '' }}" data-direction="ko-en" bindtap="setDirection">Read (KO→EN)</text>
-        <text class="pill {{ direction === 'en-ko' ? 'active' : '' }}" data-direction="en-ko" bindtap="setDirection">Recall (EN→KO)</text>
+        <text class="pill {{ direction === 'ko-en' ? 'active' : '' }}" data-direction="ko-en" bindtap="setDirection">KO→EN</text>
+        <text class="pill {{ direction === 'en-ko' ? 'active' : '' }}" data-direction="en-ko" bindtap="setDirection">EN→KO</text>
       </view>
 
       <view class="options-row">
@@ -444,20 +439,15 @@ export default {
         </view>
       </view>
 
-      <view ink:if="{{ direction === 'ko-en' }}">
-        <text class="hangul">{{ currentWord.hangul }}</text>
-        <text class="romanization">{{ currentWord.romanization }}</text>
-      </view>
+      <text class="hangul" ink:if="{{ direction === 'ko-en' }}">{{ currentWord.hangul }} ({{ currentWord.romanization }})</text>
       <text class="hangul" ink:if="{{ direction === 'en-ko' }}">{{ currentWord.meaning }}</text>
-      <text class="hint">{{ sensorAvailable ? 'Tilt your head left or right to answer' : 'Tap an answer above' }}</text>
+      <text class="feedback">{{ message || (sensorAvailable ? 'Tilt to answer' : 'Tap to answer') }}</text>
 
-      <text class="feedback" ink:if="{{ feedback }}">{{ feedback }}</text>
-      <text class="feedback" ink:if="{{ mnemonic }}">{{ mnemonic }}</text>
       <view class="row">
-        <button ink:if="{{ direction === 'ko-en' }}" bindtap="speakCurrent">Play again</button>
+        <button ink:if="{{ direction === 'ko-en' }}" bindtap="speakCurrent">Play</button>
         <button bindtap="getMnemonic">{{ mnemonicLoading ? '...' : 'Mnemonic' }}</button>
+        <text class="stats">{{ due }} due · {{ mastered }}/{{ poolSize }}</text>
       </view>
-      <text class="stats">Due: {{ due }}  Mastered: {{ mastered }}/{{ poolSize }}</text>
     </view>
 
     <view class="card" ink:if="{{ mode === 'scenario' }}">
@@ -527,14 +517,9 @@ export default {
 }
 
 .hangul {
-  font-size: 28px;
-  line-height: 32px;
+  font-size: 22px;
+  line-height: 26px;
   text-align: center;
-}
-
-.romanization {
-  font-size: 16px;
-  opacity: 0.8;
 }
 
 .meaning {
@@ -610,6 +595,8 @@ export default {
   display: flex;
   flex-direction: row;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--spacing-md, 12px);
 }
 
@@ -651,6 +638,5 @@ button.focused {
 .stats {
   font-size: 12px;
   opacity: 0.6;
-  margin-bottom: 8px;
 }
 </style>
