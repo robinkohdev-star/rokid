@@ -496,7 +496,7 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  height: 100vh;
+  height: 100%;
   background: #000;
   color: var(--color-primary, #40FF5E);
 }
